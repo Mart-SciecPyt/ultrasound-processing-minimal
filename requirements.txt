@@ -1,0 +1,6 @@
+numpy
+matplotlib
+opencv-python
+Pillow
+scipy
+sphinx_rtd_theme

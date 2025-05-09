@@ -1,0 +1,405 @@
+Ultrasound Processing Package
+=============================
+
+**ultrasound_processing_package** is a Python toolbox designed for the purpose of preprocessing and transformation of ultrasound images. It provides three core capabilities: Convert curved ultrasound scans into flat images, Filtering the contour of a selected object by intensity thresholding, Convert back to curved ultrasound scans. The transformations are essential for the thresholding so we can search for peaks using cartesian coordinates instead of polar coordinates. These modules will be the fundamentals of point cloud generation based on ultrasound images.
+
+
+Description
+--------------
+
+1. Preprocessing and Transforming Images
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In this module we are preprocessing the image and we transform it to a “flat” format which is easier to work with at the filtering part. We convert the input image to grayscale and detect centimeter calibration marks along both axes. The image is then cleaned by removing irrelevant top and side regions and suppressing extreme pixel values. Based on peak detection, the module estimates the geometric parameters of the scan area and transducer settings, such as the offset and scanning depth. Using trigonometric relations, it constructs a polar-to-Cartesian grid. We use trilinear interpolation to project the image onto a uniform Cartesian space for the filtering part.
+
+2. Filtering of the Ultrasound Images
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In this module, we first generate a binary mask by thresholding the input image: pixels with intensity at or above the specified threshold are set to white (255), and those below are set to black (0). After removing noise components, we scan each column to select the very first pixel whose intensity exceeds the threshold, building an initial contour mask. Next, we apply OpenCV’s functions to thicken that contour for clear visualization. Finally, we apply the dilated contour as a mask to preserve and display the original pixel intensities. 
+
+3. Backtransformation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In this module we define a class to reverse the transformation process, converting polar image data back into Cartesian coordinates. It first initializes key transformation parameters and builds a 3D volume grid using spherical coordinates. The grid is filtered to exclude regions outside the cone of interest. It finds the nearest original coordinates for each point and assigns interpolation weights. The main function performs trilinear interpolation to fill in the back-projected image using these weights.
+
+
+Usage
+----------
+
+1. Installation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To install:
+
+Clone the git repository, or download the code
+Navigate to the directory and install with pip
+
+.. code-block:: bash
+
+pip install ultrasound-processing
+Make sure to set the proper paths to the files.
+
+2. Example
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+
+*Hyperlinked notebook:*  
+`Notebook link <https://colab.research.google.com/drive/1kBXFLoUOBfgKEE54D0almOjun8gcgtpZ?usp=sharing>`_
+
+* Github repository link:*
+<https://github.com/Mart-SciecPyt/ScPytone_ultrasound_processing>
+
+
+Transform Project Module
+------------------------
+
+This module transforms a grayscale ultrasound image from polar-like geometry into a clean Cartesian projection using trilinear interpolation.
+
+Steps
+-----
+
+#. **Convert to grayscale**  
+#. **Detect calibration marks**  
+#. **Clean irrelevant parts of the image**  
+#. **Calculate geometric parameters**  
+#. **Build a Cartesian coordinate grid**  
+#. **Interpolate pixel values using the coordinate grid**
+
+Functions
+---------
+
+.. autofunction:: convert_to_grayscale
+.. autofunction:: detect_cm_marks
+.. autofunction:: clean_image
+.. autofunction:: calculate_geometry
+.. autofunction:: compute_coordinate_grid
+.. autofunction:: trilinear_interpolation
+.. autofunction:: transform
+
+
+Function Descriptions
+---------------------
+
+convert_to_grayscale(image)
+---------------------------
+
+Converts a color image to grayscale.
+
+Parameters
+^^^^^^^^^^
+
+:``image``: ``PIL.Image``  
+
+Returns
+^^^^^^^
+
+:``grayscale_image``: ``ndarray``  
+
+
+detect_cm_marks(gray_array)
+---------------------------
+
+Detects calibration marks (ruler ticks) on the image edges and calculates the scale.
+
+Parameters
+^^^^^^^^^^
+
+:``gray_array``: ``ndarray``  
+
+Returns
+^^^^^^^
+
+:``d``: ``float`` (pixels/cm)  
+:``rows``: ``list[int]`` — vertical tick positions  
+:``cols``: ``list[int]`` — horizontal tick positions  
+
+
+clean_image(gray_array)
+-----------------------
+
+Removes unnecessary parts and background noise from the grayscale image.
+
+Parameters
+^^^^^^^^^^
+
+:``gray_array``: ``ndarray``  
+
+Returns
+^^^^^^^
+
+:``temp``: ``ndarray`` — cleaned image  
+:``idx``: ``int`` — starting row index of relevant content  
+
+
+calculate_geometry(temp, d, alpha)
+----------------------------------
+
+Calculates physical and pixel-based dimensions from calibration and image structure.
+
+Parameters
+^^^^^^^^^^
+
+:``temp``: ``ndarray``  
+:``d``: ``float`` — pixels per cm  
+:``alpha``: ``float`` — angle in radians  
+
+Returns
+^^^^^^^
+
+:``offset_px``: ``float``  
+:``r_px``: ``int``  
+:``offset_cm``: ``float``  
+:``r_cm``: ``float``  
+:``first``: ``int`` — top row index of target area  
+
+
+compute_coordinate_grid(offset_cm, r_cm, d, temp, offset_px, first, alpha_deg, res)
+-----------------------------------------------------------------------------------
+
+Builds a 2D polar-to-Cartesian coordinate grid for interpolation.
+
+Parameters
+^^^^^^^^^^
+
+:``offset_cm``: ``float``  
+:``r_cm``: ``float``  
+:``d``: ``float``  
+:``temp``: ``ndarray``  
+:``offset_px``: ``float``  
+:``first``: ``int``  
+:``alpha_deg``: ``float``  
+:``res``: ``float``  
+
+Returns
+^^^^^^^
+
+:``X``: ``ndarray``  
+:``Y``: ``ndarray``  
+
+
+trilinear_interpolation(X, Y, temp)
+-----------------------------------
+
+Interpolates grayscale intensity values on a transformed coordinate grid.
+
+Parameters
+^^^^^^^^^^
+
+:``X``: ``ndarray`` — X coordinates  
+:``Y``: ``ndarray`` — Y coordinates  
+:``temp``: ``ndarray`` — cleaned image  
+
+Returns
+^^^^^^^
+
+:``intensity``: ``ndarray`` — interpolated image  
+
+
+transform(path, alpha_deg, res)
+-------------------------------
+
+Main transformation pipeline: loads image, detects scale, cleans image, transforms coordinates, and interpolates.
+
+Parameters
+^^^^^^^^^^
+
+:``path``: ``str``  
+:``alpha_deg``: ``float`` 
+:``res``: ``float`` 
+
+Returns
+^^^^^^^
+
+:``intensity``: ``ndarray``  
+:``depth``: ``float``  
+:``offset_cm``: ``float``  
+
+
+
+
+Masking Module
+----------------
+
+This module detects the contour of the desired object within ultrasound images—in our case ships—and cleans point cloud data.
+
+Steps
+---
+
+#. **Setting the threshold**  
+#. **Removing noise**  
+#. **Selecting first bright pixel exceeding the threshold in each column**  
+#. **Contour Dilation**  
+
+Functions
+---------
+
+.. autofunction:: mask
+
+mask(image, top_percent=0.93, top_margin=5, apply_closing=True)
+----------------------------------------------------------------
+
+Parameters
+^^^^^^^^^^
+
+:``image``: ``ndarray``  
+:``top_percent``: ``float``, default=0.93  
+:``top_margin``: ``int``, default=5  
+:``apply_closing``: ``bool``, default=True  
+
+Returns
+^^^^^^^
+
+:``masked_image``: ``ndarray``  
+
+
+
+
+Transform Back Project Module
+-----------------------------
+
+This module transforms polar ultrasound-like images into Cartesian form using trilinear interpolation.
+
+Steps
+-----
+
+#. **Load grayscale data**
+#. **Convert from polar to Cartesian coordinates**
+#. **Build a grid over the Cartesian space**
+#. **Filter valid regions**
+#. **Interpolate pixel intensities**
+
+Functions and Classes
+---------------------
+
+
+.. autoclass:: VolumeTransformer
+	:members:
+.. autofunction:: interp
+.. autofunction:: interp_img
+
+
+Function Descriptions
+---------------------
+
+VolumeTransformer
+-----------------
+
+A class to manage coordinate transformations and interpolation.
+
+**__init__(frame_width, frame_depth, depth, thetas, offset, resolution, straighten_volume=False)**
+
+Parameters
+^^^^^^^^^^
+
+:``frame_width``: ``int`` — Width of input image in pixels  
+:``frame_depth``: ``int`` — Height of input image in pixels  
+:``depth``: ``float`` — Physical scan depth  
+:``thetas``: ``tuple[float, float]`` — Angular range in radians  
+:``offset``: ``float`` — Vertical offset from transducer origo 
+:``resolution``: ``float`` — Physical resolution (units/pixel)  
+:``straighten_volume``: ``bool`` — Whether to center the angular range (default: False)  
+
+
+transform_spherical_to_cartesian(R, THETA)
+------------------------------------------
+
+Converts polar coordinates to Cartesian space.
+
+Parameters
+^^^^^^^^^^
+
+:``R``: ``ndarray``  
+:``THETA``: ``ndarray``  
+
+Returns
+^^^^^^^
+
+:``X``: ``ndarray``  
+:``Z``: ``ndarray``  
+
+
+transform_cartesian_to_spherical(X, Z)
+--------------------------------------
+
+Converts Cartesian coordinates to polar.
+
+Parameters
+^^^^^^^^^^
+
+:``X``: ``ndarray``  
+:``Z``: ``ndarray``  
+
+Returns
+^^^^^^^
+
+:``R``: ``ndarray``  
+:``THETA``: ``ndarray``  
+
+
+create_image_volume()
+---------------------
+
+Creates coordinate grids and masks invalid regions based on geometry.
+
+Parameters
+^^^^^^^^^^
+
+None  
+
+Returns
+^^^^^^^
+
+None  
+
+
+find_nearest()
+--------------
+
+Computes neighboring indices and weights for interpolation.
+
+Parameters
+^^^^^^^^^^
+
+None  
+
+Returns
+^^^^^^^
+
+None  
+
+
+trilinear_interpolation(frame)
+------------------------------
+
+Performs interpolation using surrounding data points.
+
+Parameters
+^^^^^^^^^^
+
+:``frame``: ``ndarray`` — Input 2D image  
+
+Returns
+^^^^^^^
+
+:``interpolated_frame``: ``ndarray``  
+
+
+interp_img(frame, depth, alpha, offset_frame, offset=0, resolution=0.01)
+------------------------------------------------------------------------
+
+Main function to interpolate an image.
+
+Parameters
+^^^^^^^^^^
+
+:``frame``: ``ndarray``  
+:``depth``: ``float``  
+:``alpha``: ``float``  
+:``offset_frame``: ``float``  
+:``offset``: ``float``, default=0  
+:``resolution``: ``float``, default=0.01  
+
+Returns
+^^^^^^^
+
+:``interpolated_image``: ``ndarray``  
